@@ -1,8 +1,7 @@
-// src/app/auth/login/page.tsx
 "use client";
 import { useState } from "react";
-import axios from "axios";
 import { supabaseClient } from "@/lib/supabaseClient";
+import { getConfig } from "@/lib/config";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -10,49 +9,62 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // In your login page - update the handleSubmit function
+  const { workerUrl } = getConfig();
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
 
     try {
-      // Step 1: Sign in to our app
-      const { data: signInData, error: signInError } =
-        await supabaseClient.auth.signInWithPassword({
-          email,
-          password,
-        });
+      // Sign in to Supabase
+      const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (signInError) throw signInError;
 
       const token = signInData.session?.access_token;
       if (!token) throw new Error("No session token");
 
-      // Step 2: Get SSO URL from our API
-      const loginResponse = await axios.post("/api/auth/login", {
-        access_token: token,
+      // Call Cloudflare Worker for SSO
+      const loginResponse = await fetch(`${workerUrl}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          access_token: token,
+        }),
       });
 
-      if (loginResponse.data?.error) {
-        throw new Error(loginResponse.data.error);
+      const result = await loginResponse.json();
+
+      if (!loginResponse.ok) {
+        throw new Error(result.error);
       }
 
-      // Step 3: Redirect to Chatwoot via SSO (auto-login)
-      if (loginResponse.data.ssoUrl) {
-        window.location.href = loginResponse.data.ssoUrl;
+      // Redirect to Chatwoot
+      if (result.ssoUrl) {
+        window.location.href = result.ssoUrl;
       } else {
-        window.location.href = loginResponse.data.dashboardUrl;
+        window.location.href = result.dashboardUrl;
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      setError(
-        err.message || "Failed to sign in. Please check your credentials."
-      );
+      setError(err.message || "Failed to sign in. Please check your credentials.");
     } finally {
       setBusy(false);
     }
   }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      {/* Your existing login form JSX remains the same */}
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

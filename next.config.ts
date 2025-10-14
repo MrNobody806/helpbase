@@ -1,15 +1,16 @@
-// next.config.js
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: "export",
   trailingSlash: true,
   images: {
-    unoptimized: true, // Required for Cloudflare Pages
+    unoptimized: true,
   },
-  // Remove any API routes, middleware, or server-side features
-  env: {
-    // Public environment variables will be injected by Cloudflare
+  // Remove all server-side features for static export
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
   },
 };
 

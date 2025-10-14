@@ -1,13 +1,11 @@
 // src/app/auth/signup/page.tsx
 "use client";
 import { useState } from "react";
-import axios from "axios";
 import { supabaseClient } from "@/lib/supabaseClient";
+import { getConfig } from "@/lib/conifg";
 
-const PASSWORD_REGEX =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{}|\\",./`<>:;?~]).{6,}$/;
-const PASSWORD_REQUIREMENTS =
-  "Must be 6+ chars, and include uppercase, lowercase, number, and special character.";
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{}|\\",./`<>:;?~]).{6,}$/;
+const PASSWORD_REQUIREMENTS = "Must be 6+ chars, and include uppercase, lowercase, number, and special character.";
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState("");
@@ -16,6 +14,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { workerUrl } = getConfig();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,29 +29,39 @@ export default function SignupPage() {
     }
 
     try {
-      const signupResponse = await axios.post("/api/auth/signup", {
-        full_name: fullName,
-        company_name: companyName,
+      // Call Cloudflare Worker API
+      const signupResponse = await fetch(`${workerUrl}/api/auth/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          company_name: companyName,
+          email,
+          password,
+        }),
+      });
+
+      const result = await signupResponse.json();
+
+      if (!signupResponse.ok) {
+        throw new Error(result.error);
+      }
+
+      // Auto-login after successful signup
+      const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (signupResponse.data?.error) {
-        throw new Error(signupResponse.data.error);
-      }
-
-      const { data: signInData, error: signInError } =
-        await supabaseClient.auth.signInWithPassword({
-          email,
-          password,
-        });
-
       if (signInError) throw signInError;
 
-      if (signupResponse.data.ssoUrl) {
-        window.location.href = signupResponse.data.ssoUrl;
+      // Redirect to Chatwoot
+      if (result.ssoUrl) {
+        window.location.href = result.ssoUrl;
       } else {
-        window.location.href = signupResponse.data.dashboardUrl;
+        window.location.href = result.dashboardUrl;
       }
     } catch (err: any) {
       console.error("Signup error:", err);
@@ -60,6 +70,13 @@ export default function SignupPage() {
       setBusy(false);
     }
   }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* Your existing signup form JSX remains the same */}
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
