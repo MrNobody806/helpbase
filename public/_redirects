@@ -1,0 +1,11 @@
+# Domain routing
+https://www.helpbase.co/* https://helpbase.co/:splat 301
+https://accounts.helpbase.co/ https://accounts.helpbase.co/auth/signup 302
+
+# Auth routing
+https://helpbase.co/auth/* https://accounts.helpbase.co/auth/:splat 301
+https://www.helpbase.co/auth/* https://accounts.helpbase.co/auth/:splat 301
+https://app.helpbase.co/auth/* https://accounts.helpbase.co/auth/:splat 301
+
+# SPA fallback
+/* /index.html 200
