@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
-import { getConfig } from "@/lib/conifg";
+import { getConfig } from "@/lib/config";
 
 const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{}|\\",./`<>:;?~]).{6,}$/;
@@ -21,7 +21,6 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    // Password validation
     if (!PASSWORD_REGEX.test(password)) {
       setError(
         "Password must be 6+ chars with uppercase, lowercase, number, and special character"
@@ -31,14 +30,9 @@ export default function SignupPage() {
     }
 
     try {
-      console.log("📡 Calling Worker directly at:", `${workerUrl}/auth/signup`);
-
-      // Call Cloudflare Worker signup endpoint
       const response = await fetch(`${workerUrl}/auth/signup`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: fullName,
           company_name: companyName,
@@ -48,33 +42,16 @@ export default function SignupPage() {
       });
 
       const result = await response.json();
-      console.log("📄 Worker response:", result);
+      if (!response.ok) throw new Error(result.error || "Signup failed");
 
-      if (!response.ok) {
-        throw new Error(result.error || "Signup failed");
-      }
-
-      console.log("✅ Account created, auto-login...");
-
-      // Auto-login with Supabase using new auth method
+      // Auto-login with Supabase
       const { data: signInData, error: signInError } =
-        await supabaseClient.auth.signInWithPassword({
-          email,
-          password,
-        });
+        await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (signInError) throw signInError;
 
-      // Redirect to dashboard via Worker result
-      if (result.dashboardUrl) {
-        window.location.href = result.dashboardUrl;
-      } else if (result.ssoUrl) {
-        window.location.href = result.ssoUrl;
-      } else {
-        window.location.href = "https://app.helpbase.co";
-      }
+      window.location.href = result.dashboardUrl || result.ssoUrl || "/";
     } catch (err: any) {
-      console.error("💥 Signup failed:", err);
       setError(err.message || "Failed to create account");
     } finally {
       setLoading(false);
@@ -84,7 +61,7 @@ export default function SignupPage() {
   return (
     <div className="h-screen bg-[#F4F2F1] flex items-center justify-center p-4 relative overflow-hidden">
       <div className="w-full max-w-4xl flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
-        {/* Left Side - Logo & Branding */}
+        {/* Left Branding */}
         <div className="w-full lg:w-1/2 text-center lg:text-left">
           <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
             <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
@@ -92,28 +69,12 @@ export default function SignupPage() {
             </div>
             <span className="text-xl font-bold text-gray-900">HelpBase</span>
           </div>
-
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 font-switzer mb-3">
             Join thousands of teams delivering exceptional support
           </h1>
-
           <p className="text-gray-600 text-sm lg:text-base mb-6">
             Streamline your customer support workflow with our powerful platform
           </p>
-
-          {/* Trust Indicators */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 text-gray-600">
-            <div className="flex items-center gap-2">
-              <div className="flex text-amber-400">
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              </div>
-              <span className="text-sm font-medium">
-                4.9/5 from 300K+ users
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Right Side - Form */}
@@ -143,8 +104,8 @@ export default function SignupPage() {
                   <input
                     type="text"
                     required
-                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                     placeholder="John Doe"
+                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                   />
@@ -157,8 +118,8 @@ export default function SignupPage() {
                   <input
                     type="text"
                     required
-                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                     placeholder="Acme Inc"
+                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                   />
@@ -172,8 +133,8 @@ export default function SignupPage() {
                 <input
                   type="email"
                   required
-                  className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                   placeholder="john@company.com"
+                  className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -186,8 +147,8 @@ export default function SignupPage() {
                 <input
                   type="password"
                   required
-                  className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                   placeholder="Create secure password"
+                  className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
