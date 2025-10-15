@@ -1,5 +1,6 @@
 export const config = {
   development: {
+    // workerUrl: "https://api.helpbase.co",
     workerUrl: "http://127.0.0.1:8787",
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
     supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
