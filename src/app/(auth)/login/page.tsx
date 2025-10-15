@@ -30,13 +30,16 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      // 1️⃣ Sign in via Supabase
       const { data: signInData, error: signInError } =
         await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (signInError) throw signInError;
+
       const token = signInData.session?.access_token;
       if (!token) throw new Error("No session token returned");
 
+      // 2️⃣ Call your Cloudflare Worker /auth/login
       const response = await fetch(`${workerUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -46,13 +49,12 @@ export default function LoginPage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Login failed");
 
-      // Redirect via SSO
+      // 3️⃣ Handle redirect
       if (result.ssoUrl) {
         window.location.href = result.ssoUrl;
-        return;
+      } else {
+        window.location.href = result.dashboardUrl;
       }
-
-      window.location.href = result.ssoUrl || result.dashboardUrl;
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {

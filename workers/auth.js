@@ -215,18 +215,32 @@ async function handleLogin(request, env) {
   try {
     const { access_token } = await request.json();
 
+    if (!access_token) {
+      return jsonResponse({ error: "Missing access token" }, 400);
+    }
+
+    // 1️⃣ Validate Supabase session using the Access Token
     const userResponse = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
       headers: {
         Authorization: `Bearer ${access_token}`,
-        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY, // ✅ use service role here for now
       },
     });
 
-    const { user, error } = await userResponse.json();
-    if (error || !user) throw new Error("Invalid session");
+    const userData = await userResponse.json();
 
+    if (!userResponse.ok || !userData?.id) {
+      console.error("❌ Supabase session invalid:", userData);
+      throw new Error("Invalid or expired session");
+    }
+
+    const userId = userData.id;
+    const email = userData.email;
+    console.log("✅ Supabase user verified:", email);
+
+    // 2️⃣ Fetch Chatwoot mapping
     const mappingResponse = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/chatwoot_mappings?user_id=eq.${user.id}&select=account_id,user_account_id`,
+      `${env.SUPABASE_URL}/rest/v1/chatwoot_mappings?user_id=eq.${userId}&select=account_id,user_account_id`,
       {
         headers: {
           Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
@@ -235,24 +249,34 @@ async function handleLogin(request, env) {
       }
     );
 
+    if (!mappingResponse.ok)
+      throw new Error("Failed to fetch Chatwoot mapping");
+
     const mapping = await mappingResponse.json();
-    if (!mapping || mapping.length === 0)
-      throw new Error("Chatwoot account not found for user");
+    if (!mapping?.length)
+      throw new Error("Chatwoot account not found for this user");
 
     const { account_id, user_account_id } = mapping[0];
+
+    // 3️⃣ Generate Chatwoot SSO URL
     const ssoUrl = await generateChatwootSSO(user_account_id, env);
+
+    // 4️⃣ Construct dashboard URL
     const dashboardBase = env.DASHBOARD_URL || "https://app.helpbase.co";
     const dashboardUrl = `${dashboardBase}/app/accounts/${account_id}/dashboard`;
 
+    console.log("🎉 Login successful for:", email);
+
     return jsonResponse({
       success: true,
-      ssoUrl,
+      email,
       dashboardUrl,
-      message: "Login successful",
+      ssoUrl,
+      message: "Login successful via SSO",
     });
   } catch (error) {
     console.error("💥 Login error:", error);
-    return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ error: error.message || "Login failed" }, 500);
   }
 }
 
