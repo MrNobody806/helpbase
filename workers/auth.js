@@ -1,16 +1,16 @@
 // auth.js - Consolidated Cloudflare Worker
-import { createClient } from "@supabase/supabase-js";
+
 const authAPI = {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
     // CORS headers
-    // const corsHeaders = {
-    //   "Access-Control-Allow-Origin": "*",
-    //   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    //   "Access-Control-Allow-Headers": "Content-Type, Authorization, *",
-    // };
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, *",
+    };
 
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
@@ -37,75 +37,102 @@ const authAPI = {
 };
 
 async function handleSignup(request, env) {
-  // Create a server-side Supabase client instance
-  // The service role key is required for admin actions and to bypass RLS.
-  const supabase = createClient(
-    env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    }
-  );
-
   try {
+    // console.log("🚀 Signup process started");
+
     const { full_name, company_name, email, password } = await request.json();
 
     if (!full_name || !company_name || !email || !password) {
       return jsonResponse({ error: "Missing required fields" }, 400);
     }
 
-    // Step 1: Create Supabase Auth user using the admin API
-    // `auth.admin.createUser` requires the service role key.
-    const { data: authData, error: authError } =
-      await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name, company_name },
-      });
+    // console.log("📝 Creating Supabase user for:", email);
+    // console.log("🔑 Supabase URL:", env.SUPABASE_URL);
+    // console.log("🔑 Key prefix:", env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 10));
 
-    if (authError) {
-      console.error("❌ Supabase auth error:", authError);
-      return jsonResponse({ error: authError.message }, 500);
+    // Step 1: Create Supabase Auth user
+    const authResponse = await fetch(
+      `${env.SUPABASE_URL}/auth/v1/admin/users`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name, company_name },
+        }),
+      }
+    );
+
+    const authData = await authResponse.json();
+    console.log("✅ Supabase auth response:", authData);
+
+    if (authData.error) {
+      console.error("❌ Supabase auth error:", authData.error);
+      throw new Error(authData.error.message);
     }
 
     const userId = authData.user.id;
     console.log("👤 User created with ID:", userId);
 
-    // Step 2: Create user record in the 'users' table
-    const { error: dbError } = await supabase.from("users").insert({
-      id: userId,
-      email,
-      full_name,
-      company_name,
-      role: "administrator",
+    // Step 2: Create user in database
+    const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/users`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        id: userId,
+        email,
+        full_name,
+        company_name,
+        role: "administrator",
+      }),
     });
 
-    if (dbError) {
-      console.error("❌ Database error:", dbError);
-      return jsonResponse({ error: "Failed to create user record" }, 500);
+    if (!dbResponse.ok) {
+      const error = await dbResponse.text();
+      console.error("❌ Database error:", error);
+      throw new Error("Failed to create user record");
     }
 
     // Step 3: Create starter subscription
-    const { error: subError } = await supabase.from("subscriptions").insert({
-      user_id: userId,
-      plan: "starter",
-      status: "active",
-    });
+    const subResponse = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/subscriptions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          plan: "starter",
+          status: "active",
+          current_period_end: null,
+        }),
+      }
+    );
 
-    if (subError) {
-      console.error("❌ Subscription error:", subError);
-      return jsonResponse({ error: "Failed to create subscription" }, 500);
+    if (!subResponse.ok) {
+      const error = await subResponse.text();
+      console.error("❌ Subscription error:", error);
+      throw new Error("Failed to create subscription");
     }
 
     console.log("💬 Creating Chatwoot account...");
 
-    // Steps 4-6: Create Chatwoot account, user, and link.
-    // Assuming these helper functions are defined elsewhere and use `fetch`.
+    // Step 4: Create Chatwoot Account
     const accountName = company_name;
     const accountResp = await createChatwootAccount(accountName, email, env);
     const accountId = Number(accountResp?.id || accountResp?.data?.id);
@@ -118,6 +145,7 @@ async function handleSignup(request, env) {
 
     console.log("✅ Chatwoot account created:", accountId);
 
+    // Step 5: Create Chatwoot platform user
     const userResp = await createChatwootPlatformUser(
       full_name,
       email,
@@ -132,30 +160,44 @@ async function handleSignup(request, env) {
 
     console.log("✅ Chatwoot user created:", platformUserId);
 
+    // Step 6: Associate platform user to account as administrator
     await createAccountUserLink(accountId, platformUserId, env);
     console.log("🔗 Linked Chatwoot account and user");
 
-    // Step 7: Store the Chatwoot mapping in Supabase
-    const { error: mappingError } = await supabase
-      .from("chatwoot_mappings")
-      .insert({
-        user_id: userId,
-        account_id: accountId,
-        user_account_id: platformUserId,
-      });
+    // Step 7: Store the mapping
+    const mappingResp = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/chatwoot_mappings`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          account_id: accountId,
+          user_account_id: platformUserId,
+        }),
+      }
+    );
 
-    if (mappingError) {
-      console.error("❌ Mapping error:", mappingError);
-      return jsonResponse({ error: "Failed to store user mapping" }, 500);
+    if (!mappingResp.ok) {
+      const error = await mappingResp.text();
+      console.error("❌ Mapping error:", error);
+      throw new Error("Failed to store user mapping");
     }
 
     console.log("🗺️ User mapping stored successfully");
 
-    // Step 8: Generate SSO URL and return
+    // Step 8: Generate SSO URL with both accountId and platformUserId
     const ssoUrl = await generateChatwootSSO(platformUserId, env);
     const dashboardUrl = `${env.DASHBOARD_URL}/app/accounts/${accountId}/dashboard`;
 
     console.log("🎉 Signup successful!");
+    console.log("📊 Dashboard URL:", dashboardUrl);
+    console.log("🔑 SSO URL:", ssoUrl);
 
     return jsonResponse({
       success: true,
@@ -380,8 +422,14 @@ function jsonResponse(data, status = 200) {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, *",
     },
   });
 }
 
-export default authAPI;
+export default {
+  async fetch(request, env, ctx) {
+    return authAPI.fetch(request, env, ctx);
+  },
+};
