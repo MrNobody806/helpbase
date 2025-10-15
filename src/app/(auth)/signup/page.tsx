@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
-import { getConfig } from "@/lib/config";
+import { getConfig } from "@/lib/conifg";
 
 const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{}|\\",./`<>:;?~]).{6,}$/;
