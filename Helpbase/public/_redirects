@@ -1,0 +1,11 @@
+# Auth routing
+/helpbase.co/auth/* https://accounts.helpbase.co/auth/:splat 301
+/www.helpbase.co/auth/* https://accounts.helpbase.co/auth/:splat 301
+/app.helpbase.co/auth/* https://accounts.helpbase.co/auth/:splat 301
+
+# Domain routing
+https://www.helpbase.co/* https://helpbase.co/:splat 301
+https://accounts.helpbase.co/ https://accounts.helpbase.co/auth/signup 302
+
+# Catch all
+/* https://:host/:splat 200
