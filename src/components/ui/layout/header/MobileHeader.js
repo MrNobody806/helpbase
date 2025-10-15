@@ -61,7 +61,7 @@ const MobileHeader = () => {
   }, []);
 
   const handleJoinWaitlist = useCallback(() => {
-    router.push("/signup");
+    router.push("https://accounts.helpbase.co/signup");
     setIsMenuOpen(false);
   }, [router]);
 

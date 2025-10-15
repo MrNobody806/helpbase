@@ -9,8 +9,9 @@ import BrandSlider from "./BrandSlider";
 const Hero = () => {
   const router = useRouter();
   const handleJoinWaitlist = useCallback(() => {
-    router.push("/signup");
+    router.push("https://accounts.helpbase.co/signup");
   }, [router]);
+
   return (
     <section className="w-full relative flex flex-col items-center justify-center text-center px-6 py-6 pt-[130px] bg-[#F4F2F1] overflow-hidden">
       <img
@@ -64,6 +65,7 @@ const Hero = () => {
         transition={{ delay: 1 }}
       >
         <button className="px-6 py-3 rounded-lg bg-black text-white font-semibold shadow-lg hover:bg-gray-900 transition-colors">
+          onClick={handleJoinWaitlist}
           Secure Your Spot
         </button>
       </motion.div>

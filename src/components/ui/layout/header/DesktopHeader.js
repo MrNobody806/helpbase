@@ -39,7 +39,7 @@ const DesktopHeader = () => {
   }, []);
 
   const handleJoinWaitlist = useCallback(() => {
-    router.push("/signup");
+    router.push("https://accounts.helpbase.co/signup");
   }, [router]);
 
   const navItems = [
