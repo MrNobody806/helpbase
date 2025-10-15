@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { supabaseClient } from "@/lib/supabaseClient";
+import { useState, useEffect } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getConfig } from "@/lib/conifg";
 
 export default function LoginPage() {
@@ -8,16 +8,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(
+    null
+  );
 
   const { workerUrl } = getConfig();
 
+  // Initialize Supabase client on client-side only
+  useEffect(() => {
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    setSupabaseClient(client);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabaseClient) return;
     setLoading(true);
     setError(null);
 
     try {
-      // Sign in with Supabase
       const { data: signInData, error: signInError } =
         await supabaseClient.auth.signInWithPassword({ email, password });
 
@@ -25,7 +37,6 @@ export default function LoginPage() {
       const token = signInData.session?.access_token;
       if (!token) throw new Error("No session token returned");
 
-      // Call Worker login endpoint
       const response = await fetch(`${workerUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

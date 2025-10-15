@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { supabaseClient } from "@/lib/supabaseClient";
+import { useState, useEffect } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getConfig } from "@/lib/conifg";
 
 const PASSWORD_REGEX =
@@ -13,11 +13,24 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(
+    null
+  );
 
   const { workerUrl } = getConfig();
 
+  useEffect(() => {
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    setSupabaseClient(client);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabaseClient) return;
+
     setLoading(true);
     setError(null);
 
@@ -30,6 +43,7 @@ export default function SignupPage() {
     }
 
     try {
+      // --- Call Cloudflare Worker ---
       const response = await fetch(`${workerUrl}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -42,17 +56,27 @@ export default function SignupPage() {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Signup failed");
 
-      // Auto-login with Supabase
+      if (!response.ok) {
+        throw new Error(result?.error || "Signup failed");
+      }
+
+      // --- Sign in with Supabase ---
       const { data: signInData, error: signInError } =
         await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (signInError) throw signInError;
 
-      window.location.href = result.dashboardUrl || result.ssoUrl || "/";
+      // --- Redirect to dashboard or SSO ---
+      const redirectUrl = result.dashboardUrl || result.ssoUrl || "/";
+      window.location.href = redirectUrl;
     } catch (err: any) {
-      setError(err.message || "Failed to create account");
+      // Display detailed error from worker or Supabase
+      if (err?.message) {
+        setError(err.message);
+      } else {
+        setError("Failed to create account. Check your details and try again.");
+      }
     } finally {
       setLoading(false);
     }
