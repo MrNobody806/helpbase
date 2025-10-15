@@ -6,7 +6,7 @@ export const config = {
     dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL!,
   },
   production: {
-    workerUrl: "https://auth-api.helpbase.co",
+    workerUrl: "https://api.helpbase.co",
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
     supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL!,
