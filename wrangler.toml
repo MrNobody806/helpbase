@@ -1,16 +1,11 @@
 name = "helpbase-auth-api"
 compatibility_date = "2024-01-15"
-compatibility_flags = ["nodejs_compat"]
 
 [vars]
 SUPABASE_URL = "https://movfojvxpvdtinnaakqr.supabase.co"
 DASHBOARD_URL = "https://app.helpbase.co"
-CHATWOOT_URL = "http://151.80.60.99:3000"
+CHATWOOT_BASE_URL = "http://151.80.60.99:3000"
 
 [env.production.vars]
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdmZvanZ4cHZkdGlubmFha3FyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDMzNTkzMSwiZXhwIjoyMDc1OTExOTMxfQ.kZESijHkpnlumO7-tyomg9zmADK60iABMCNbUWAxkQg
+SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdmZvanZ4cHZkdGlubmFha3FyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDMzNTkzMSwiZXhwIjoyMDc1OTExOTMxfQ.kZESijHkpnlumO7-tyomg9zmADK60iABMCNbUWAxkQg"
 CHATWOOT_PLATFORM_TOKEN = "7nTc2fkXVtLBc2WEweChdfUR"
-
-[[routes]]
-pattern = "auth-api.helpbase.co/*"
-custom_domain = true

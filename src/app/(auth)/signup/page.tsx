@@ -21,6 +21,7 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
+    // Password validation
     if (!PASSWORD_REGEX.test(password)) {
       setError(
         "Password must be 6+ chars with uppercase, lowercase, number, and special character"
@@ -30,7 +31,10 @@ export default function SignupPage() {
     }
 
     try {
-      const response = await fetch(`${workerUrl}/api/auth/signup`, {
+      console.log("📡 Calling Worker directly at:", `${workerUrl}/auth/signup`);
+
+      // Call Cloudflare Worker signup endpoint
+      const response = await fetch(`${workerUrl}/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -44,11 +48,15 @@ export default function SignupPage() {
       });
 
       const result = await response.json();
+      console.log("📄 Worker response:", result);
 
       if (!response.ok) {
-        throw new Error(result.error);
+        throw new Error(result.error || "Signup failed");
       }
 
+      console.log("✅ Account created, auto-login...");
+
+      // Auto-login with Supabase using new auth method
       const { data: signInData, error: signInError } =
         await supabaseClient.auth.signInWithPassword({
           email,
@@ -57,12 +65,16 @@ export default function SignupPage() {
 
       if (signInError) throw signInError;
 
-      if (result.ssoUrl) {
+      // Redirect to dashboard via Worker result
+      if (result.dashboardUrl) {
+        window.location.href = result.dashboardUrl;
+      } else if (result.ssoUrl) {
         window.location.href = result.ssoUrl;
       } else {
-        window.location.href = result.dashboardUrl;
+        window.location.href = "https://app.helpbase.co";
       }
     } catch (err: any) {
+      console.error("💥 Signup failed:", err);
       setError(err.message || "Failed to create account");
     } finally {
       setLoading(false);
@@ -70,157 +82,140 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F2F1] flex items-center justify-center py-12 px-4 relative overflow-hidden">
-      {/* Background gradients matching landing page */}
-      <img
-        src="/assets/images/hero/color-gradient.svg"
-        alt="Background"
-        className="absolute top-0 right-0 max-w-[400px] md:max-w-[500px] h-full object-cover z-0 opacity-80 pointer-events-none"
-        loading="eager"
-      />
-      <img
-        src="/assets/images/hero/color-gradient.svg"
-        alt="Background"
-        className="absolute top-0 left-0 max-w-[400px] md:max-w-[500px] h-full object-cover z-0 opacity-80 pointer-events-none transform scale-x-[-1]"
-        loading="eager"
-      />
-
-      <div className="w-full max-w-md relative z-10">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-2xl">✺</span>
+    <div className="h-screen bg-[#F4F2F1] flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="w-full max-w-4xl flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
+        {/* Left Side - Logo & Branding */}
+        <div className="w-full lg:w-1/2 text-center lg:text-left">
+          <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
+            <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+              <span className="text-white text-lg font-semibold">✺</span>
+            </div>
             <span className="text-xl font-bold text-gray-900">HelpBase</span>
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 font-switzer">
-            Join Helpbase
-          </h2>
-          <p className="mt-3 text-gray-600 text-lg">
-            Start delivering exceptional customer support
+
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 font-switzer mb-3">
+            Join thousands of teams delivering exceptional support
+          </h1>
+
+          <p className="text-gray-600 text-sm lg:text-base mb-6">
+            Streamline your customer support workflow with our powerful platform
           </p>
-        </div>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 backdrop-blur-sm">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <p className="text-red-800 text-sm font-medium">{error}</p>
+          {/* Trust Indicators */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-gray-600">
+            <div className="flex items-center gap-2">
+              <div className="flex text-amber-400">
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
               </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Full Name
-              </label>
-              <input
-                type="text"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-all duration-200 bg-white"
-                placeholder="Enter your full name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
+              <span className="text-sm font-medium">
+                4.9/5 from 300K+ users
+              </span>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Company Name
-              </label>
-              <input
-                type="text"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-all duration-200 bg-white"
-                placeholder="Enter your company name"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Work Email
-              </label>
-              <input
-                type="email"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-all duration-200 bg-white"
-                placeholder="Enter your work email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-all duration-200 bg-white"
-                placeholder="Create a secure password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <p className="mt-2 text-xs text-gray-500">
-                Must include uppercase, lowercase, number, and special character
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-95"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Creating Account...
-                </span>
-              ) : (
-                "Create Account"
-              )}
-            </button>
-
-            <div className="text-center pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                Already have an account?{" "}
-                <a
-                  href="/login"
-                  className="text-black font-semibold hover:text-gray-700 transition-colors duration-200"
-                >
-                  Login
-                </a>
-              </p>
-            </div>
-          </form>
+          </div>
         </div>
 
-        {/* Additional branding element */}
-        <div className="text-center mt-8">
-          <div className="flex items-center justify-center gap-2 text-gray-600">
-            <span className="flex text-yellow-500 text-lg">★★★★☆</span>
-            <span className="text-sm">4.9 rating based on 300k users</span>
+        {/* Right Side - Form */}
+        <div className="w-full lg:w-1/2 max-w-md">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Create your account
+              </h2>
+              <p className="text-gray-600 text-sm mt-1">
+                Get started in 2 minutes
+              </p>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-700 text-xs font-medium">{error}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Company
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
+                    placeholder="Acme Inc"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Work Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
+                  placeholder="john@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  className="w-full px-3 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-black focus:border-black transition-all"
+                  placeholder="Create secure password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  Uppercase, lowercase, number & special char required
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-black text-white py-2.5 text-sm font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-all"
+              >
+                {loading ? "Creating account..." : "Create Account"}
+              </button>
+
+              <div className="text-center pt-2">
+                <p className="text-xs text-gray-600">
+                  Already have an account?{" "}
+                  <a
+                    href="/login"
+                    className="font-semibold text-black hover:underline"
+                  >
+                    Sign in
+                  </a>
+                </p>
+              </div>
+            </form>
           </div>
         </div>
       </div>
