@@ -2,7 +2,7 @@
 import React, { useRef, useMemo } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import AssignTask from "./AssignTask";
-import PageDivider from "../../UI/pagerule/PageDivider";
+import PageDivider from "@/components/ui/pagerule/PageDivider";
 import TextVerticalSlider from "./TextVerticalSlider";
 import UniqueFeatures from "./UniqueFeatures";
 
