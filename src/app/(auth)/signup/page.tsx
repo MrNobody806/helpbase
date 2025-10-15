@@ -60,15 +60,17 @@ export default function SignupPage() {
       if (!response.ok) {
         throw new Error(result?.error || "Signup failed");
       }
+      // Show message to check email
+      // setError(result.message || "Signup successful! Please check your email.");
 
-      // --- Sign in with Supabase ---
+      // // --- Sign in with Supabase ---
       const { data: signInData, error: signInError } =
         await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (signInError) throw signInError;
 
       // --- Redirect to dashboard or SSO ---
-      const redirectUrl = result.dashboardUrl || result.ssoUrl || "/";
+      const redirectUrl = result.ssoUrl || "/";
       window.location.href = redirectUrl;
     } catch (err: any) {
       // Display detailed error from worker or Supabase

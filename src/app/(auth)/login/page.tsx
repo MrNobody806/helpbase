@@ -46,6 +46,12 @@ export default function LoginPage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Login failed");
 
+      // Redirect via SSO
+      if (result.ssoUrl) {
+        window.location.href = result.ssoUrl;
+        return;
+      }
+
       window.location.href = result.ssoUrl || result.dashboardUrl;
     } catch (err: any) {
       setError(err.message || "Failed to sign in");

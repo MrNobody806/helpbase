@@ -242,7 +242,7 @@ async function handleLogin(request, env) {
     const { account_id, user_account_id } = mapping[0];
     const ssoUrl = await generateChatwootSSO(user_account_id, env);
     const dashboardBase = env.DASHBOARD_URL || "https://app.helpbase.co";
-    const dashboardUrl = `${dashboardBase}/app/accounts/${accountId}/dashboard`;
+    const dashboardUrl = `${dashboardBase}/app/accounts/${account_id}/dashboard`;
 
     return jsonResponse({
       success: true,
