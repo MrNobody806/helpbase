@@ -90,10 +90,7 @@ export default function SignupPage() {
         {/* Left Branding */}
         <div className="w-full lg:w-1/2 text-center lg:text-left">
           <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
-            <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-white text-lg font-semibold">✺</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">HelpBase</span>
+            <span className="text-4xl font-bold text-gray-900">HelpBase</span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 font-switzer mb-3">
             Join thousands of teams delivering exceptional support

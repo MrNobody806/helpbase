@@ -11,9 +11,11 @@ compatibility_date = "2025-10-15"
 
 
 [env.production]
+  routes = ["api.helpbase.co/*"]
   SUPABASE_URL = "https://movfojvxpvdtinnaakqr.supabase.co"
   SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdmZvanZ4cHZkdGlubmFha3FyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDMzNTkzMSwiZXhwIjoyMDc1OTExOTMxfQ.kZESijHkpnlumO7-tyomg9zmADK60iABMCNbUWAxkQg"
   DASHBOARD_URL = "https://app.helpbase.co"
   CHATWOOT_BASE_URL = "http://151.80.60.99:3000"
   CHATWOOT_PLATFORM_TOKEN = "7nTc2fkXVtLBc2WEweChdfUR"
 
+bucket = "./frontend/out"

@@ -12,6 +12,7 @@
     "deploy:worker": "wrangler deploy workers/auth.js"
   },
   "dependencies": {
+    "@cloudflare/workers-types": "^4.20251011.0",
     "@supabase/supabase-js": "^2.38.0",
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",

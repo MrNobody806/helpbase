@@ -82,7 +82,6 @@ const DesktopHeader = () => {
           }`}
         >
           <div className="flex items-center gap-2 text-gray-900">
-            <span className="text-2xl">✺</span>
             <span className={isScrolled ? "text-lg" : "text-xl"}>HelpBase</span>
           </div>
 
