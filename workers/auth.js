@@ -1,5 +1,4 @@
-// workers/auth.js
-export default {
+const authAPI = {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -15,7 +14,6 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // API endpoints
     if (path === "/api/auth/signup" && request.method === "POST") {
       return handleSignup(request, env);
     }
@@ -24,11 +22,14 @@ export default {
       return handleLogin(request, env);
     }
 
-    if (path === "/api/auth/reset-password" && request.method === "POST") {
-      return handleResetPassword(request, env);
+    if (path === "/api/health" && request.method === "GET") {
+      return jsonResponse({
+        status: "ok",
+        environment: env.ENVIRONMENT || "production",
+      });
     }
 
-    return jsonResponse({ error: "Endpoint not found" }, 404);
+    return jsonResponse({ error: "Not found" }, 404);
   },
 };
 
@@ -40,7 +41,7 @@ async function handleSignup(request, env) {
       return jsonResponse({ error: "Missing required fields" }, 400);
     }
 
-    // Create Supabase auth user
+    // Create Supabase user
     const authResponse = await fetch(
       `${env.SUPABASE_URL}/auth/v1/admin/users`,
       {
@@ -64,8 +65,8 @@ async function handleSignup(request, env) {
 
     const userId = authData.user.id;
 
-    // Create user in database
-    const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/users`, {
+    // Create user record
+    await fetch(`${env.SUPABASE_URL}/rest/v1/users`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
@@ -81,8 +82,6 @@ async function handleSignup(request, env) {
         role: "administrator",
       }),
     });
-
-    if (!dbResponse.ok) throw new Error("Failed to create user record");
 
     // Create Chatwoot account
     const account = await createChatwootAccount(company_name, email, env);
@@ -132,7 +131,7 @@ async function handleLogin(request, env) {
   try {
     const { access_token } = await request.json();
 
-    // Verify user session
+    // Verify user
     const userResponse = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -174,40 +173,7 @@ async function handleLogin(request, env) {
   }
 }
 
-async function handleResetPassword(request, env) {
-  try {
-    const { email } = await request.json();
-
-    // Send password reset email via Supabase
-    const response = await fetch(`${env.SUPABASE_URL}/auth/v1/recover`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apiKey: env.SUPABASE_SERVICE_ROLE_KEY,
-      },
-      body: JSON.stringify({
-        email,
-        redirect_to: `${env.DASHBOARD_URL}/auth/reset-password`,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
-
-    return jsonResponse({
-      success: true,
-      message: "Password reset email sent",
-    });
-  } catch (error) {
-    console.error("Reset password error:", error);
-    return jsonResponse({ error: error.message }, 500);
-  }
-}
-
-// Chatwoot API helpers
+// Chatwoot helpers
 async function createChatwootAccount(name, email, env) {
   const response = await fetch(`${env.CHATWOOT_URL}/api/v1/accounts`, {
     method: "POST",
@@ -215,10 +181,7 @@ async function createChatwootAccount(name, email, env) {
       "Content-Type": "application/json",
       api_access_token: env.CHATWOOT_PLATFORM_TOKEN,
     },
-    body: JSON.stringify({
-      name,
-      locale: "en",
-    }),
+    body: JSON.stringify({ name, locale: "en" }),
   });
   return response.json();
 }
@@ -230,12 +193,7 @@ async function createChatwootUser(name, email, password, env) {
       "Content-Type": "application/json",
       platform_access_token: env.CHATWOOT_PLATFORM_TOKEN,
     },
-    body: JSON.stringify({
-      name,
-      email,
-      password,
-      custom_attributes: {},
-    }),
+    body: JSON.stringify({ name, email, password, custom_attributes: {} }),
   });
   return response.json();
 }
@@ -249,10 +207,7 @@ async function linkChatwootAccount(accountId, userId, env) {
         "Content-Type": "application/json",
         api_access_token: env.CHATWOOT_PLATFORM_TOKEN,
       },
-      body: JSON.stringify({
-        user_id: userId,
-        role: "administrator",
-      }),
+      body: JSON.stringify({ user_id: userId, role: "administrator" }),
     }
   );
 }
@@ -264,12 +219,8 @@ async function generateChatwootSSO(accountId, userId, env) {
       "Content-Type": "application/json",
       platform_access_token: env.CHATWOOT_PLATFORM_TOKEN,
     },
-    body: JSON.stringify({
-      account_id: accountId,
-      user_id: userId,
-    }),
+    body: JSON.stringify({ account_id: accountId, user_id: userId }),
   });
-
   const data = await response.json();
   return data.sso_url;
 }
@@ -283,3 +234,5 @@ function jsonResponse(data, status = 200) {
     },
   });
 }
+
+export default authAPI;
