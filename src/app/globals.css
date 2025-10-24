@@ -1,20 +1,5 @@
 @import "tailwindcss";
 
-@layer base {
-  @font-face {
-    font-family: "Switzer";
-    src: url("/assets/fonts/Switzer-Variable.ttf") format("truetype");
-    font-weight: 400;
-    font-style: normal;
-  }
-  @font-face {
-    font-family: "Switzer-VariableItalic";
-    src: url("/assets/fonts/Switzer-VariableItalic.ttf") format("truetype");
-    font-weight: 700;
-    font-style: normal;
-  }
-}
-
 :root {
   --background: #ffffff;
   --foreground: #171717;
