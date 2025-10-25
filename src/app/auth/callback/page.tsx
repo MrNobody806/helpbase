@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { getConfig } from "@/lib/conifg";
 
@@ -16,11 +16,22 @@ export default function AuthCallbackPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+  // Refs to track execution state
+  const hasProcessed = useRef(false);
+  const provisioningTriggered = useRef(false);
+
   useEffect(() => {
     handleAuthCallback();
   }, []);
 
   const handleAuthCallback = async () => {
+    // Prevent multiple executions
+    if (hasProcessed.current) {
+      console.log("Auth callback already processed");
+      return;
+    }
+    hasProcessed.current = true;
+
     try {
       const supabase = createClient(supabaseUrl, supabaseAnon);
 
@@ -58,23 +69,42 @@ export default function AuthCallbackPage() {
         throw new Error("Email not verified yet");
       }
 
-      // ✅ CRITICAL: Trigger Chatwoot provisioning via the verified endpoint
-      setMessage("Email confirmed! Setting up your Chatwoot account...");
+      // ✅ CRITICAL: Clear tokens from URL immediately after validation
+      // This prevents re-triggering on refresh/navigation
+      window.history.replaceState({}, "", window.location.pathname);
 
-      const provisioningResult = await triggerChatwootProvisioning(user.id);
+      // ✅ CRITICAL: Trigger Chatwoot provisioning ONLY if not already triggered
+      if (!provisioningTriggered.current) {
+        provisioningTriggered.current = true;
 
-      if (provisioningResult.success) {
+        setMessage("Email confirmed! Setting up your Chatwoot account...");
+
+        const provisioningResult = await triggerChatwootProvisioning(user.id);
+
+        if (provisioningResult.success) {
+          setStatus("success");
+          setMessage("Account setup complete! Redirecting to login...");
+
+          // Sign out the user since they'll sign in with email/password later
+          await supabase.auth.signOut();
+
+          // Redirect to login with success message
+          setTimeout(() => {
+            window.location.href = "/login?message=email_confirmed";
+          }, 2000);
+        } else {
+          throw new Error(
+            provisioningResult.error || "Failed to setup Chatwoot account"
+          );
+        }
+      } else {
+        console.log("Chatwoot provisioning already triggered, redirecting...");
+        // If provisioning was already triggered, just redirect
         setStatus("success");
-        setMessage("Account setup complete! Redirecting to login...");
-
-        // Redirect to login with success message
+        setMessage("Redirecting to login...");
         setTimeout(() => {
           window.location.href = "/login?message=email_confirmed";
-        }, 2000);
-      } else {
-        throw new Error(
-          provisioningResult.error || "Failed to setup Chatwoot account"
-        );
+        }, 1000);
       }
     } catch (error: any) {
       console.error("Callback error:", error);
@@ -197,17 +227,6 @@ export default function AuthCallbackPage() {
             >
               Try Again
             </button>
-          </div>
-        )}
-
-        {/* Debug info - remove in production */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-4 p-3 bg-gray-100 rounded-lg text-xs text-left">
-            <p className="font-mono text-gray-600">
-              Status: {status}
-              <br />
-              Message: {message}
-            </p>
           </div>
         )}
       </div>

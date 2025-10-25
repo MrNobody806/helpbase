@@ -12,7 +12,6 @@ export default function LoginPage() {
   const { workerUrl } = getConfig();
 
   useEffect(() => {
-    // Check for existing session on page load
     checkExistingSession();
 
     const params = new URLSearchParams(window.location.search);
@@ -22,33 +21,27 @@ export default function LoginPage() {
   }, []);
 
   const checkExistingSession = async () => {
+    const tokenData = getStoredToken();
+    if (!tokenData || isTokenExpired(tokenData.expires_at)) return;
+
     try {
-      const tokenData = getStoredToken();
+      console.log("Found valid session, attempting auto-login...");
+      const res = await fetch(`${workerUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: tokenData.access_token }),
+      });
 
-      if (tokenData && !isTokenExpired(tokenData.expires_at)) {
-        console.log("Found valid session, attempting auto-login...");
-        const response = await fetch(`${workerUrl}/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ access_token: tokenData.access_token }),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log("Auto-login successful, redirecting...");
-          // Auto-redirect to dashboard if session is valid
-          if (result.dashboardUrl) {
-            window.location.href = result.dashboardUrl;
-            return; // Prevent further execution
-          }
-        } else {
-          // Session invalid, clear stored data
-          console.log("Session invalid, clearing tokens");
-          clearStoredTokens();
-        }
+      const result = await res.json();
+      if (res.ok && result.ssoUrl) {
+        console.log("Auto-login successful, redirecting...");
+        window.location.href = result.ssoUrl;
+      } else {
+        console.warn("Auto-login failed, clearing session...");
+        clearStoredTokens();
       }
-    } catch (error) {
-      console.error("Session check error:", error);
+    } catch (err) {
+      console.error("Session check error:", err);
       clearStoredTokens();
     }
   };
@@ -60,9 +53,7 @@ export default function LoginPage() {
     setSuccess("");
 
     try {
-      console.log("Attempting password login...");
-
-      const response = await fetch(`${workerUrl}/auth/login`, {
+      const res = await fetch(`${workerUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -71,139 +62,64 @@ export default function LoginPage() {
         }),
       });
 
-      const result = await response.json();
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.message || "Login failed");
 
-      if (!response.ok) {
-        if (result.error === "Email not verified") {
-          throw new Error("Please verify your email before logging in.");
-        }
-        if (result.error === "Invalid credentials") {
-          throw new Error("Invalid email or password.");
-        }
-        throw new Error(result.message || "Login failed");
-      }
-
-      // Store tokens for future sessions
-      if (result.access_token && result.expires_at) {
-        const tokenData = {
-          access_token: result.access_token,
-          refresh_token: result.refresh_token,
-          expires_at: result.expires_at,
-          user_id: result.user_id,
-        };
-        localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
-        console.log("Login successful, tokens stored");
-      }
-
-      // ✅ FIX: Redirect to Chatwoot dashboard if available
-      if (result.dashboardUrl) {
-        console.log("Redirecting to Chatwoot dashboard:", result.dashboardUrl);
-        window.location.href = result.dashboardUrl;
-      } else if (result.ssoUrl) {
-        console.log("Redirecting to Chatwoot SSO:", result.ssoUrl);
+      storeTokens(result);
+      if (result.ssoUrl) {
         window.location.href = result.ssoUrl;
       } else {
-        console.log("No Chatwoot URL available, redirecting to home");
-        window.location.href = "/dashboard";
+        window.location.href = "/login";
       }
     } catch (err: any) {
-      console.error("Login error:", err);
-      setError(err.message || "Login failed. Please try again.");
+      setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // Token management utilities
+  // Helpers
   const storeTokens = (result: any) => {
-    if (result.access_token && result.expires_at) {
-      const tokenData = {
-        access_token: result.access_token,
-        refresh_token: result.refresh_token || null,
-        expires_at: result.expires_at,
-        user_id: result.user_id,
-      };
-      try {
-        localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
-        console.log("Tokens stored successfully");
-      } catch (error) {
-        console.error("Failed to store tokens:", error);
-      }
-    }
+    const tokenData = {
+      access_token: result.access_token,
+      refresh_token: result.refresh_token,
+      expires_at: result.expires_at,
+      user_id: result.user_id,
+    };
+    localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
   };
 
   const getStoredToken = () => {
-    try {
-      const stored = localStorage.getItem("auth_tokens");
-      if (stored) {
-        const tokenData = JSON.parse(stored);
-        console.log("Retrieved stored token, expires:", tokenData.expires_at);
-        return tokenData;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error reading stored token:", error);
-      return null;
-    }
+    const stored = localStorage.getItem("auth_tokens");
+    return stored ? JSON.parse(stored) : null;
   };
 
   const clearStoredTokens = () => {
-    try {
-      localStorage.removeItem("auth_tokens");
-      console.log("Tokens cleared");
-    } catch (error) {
-      console.error("Error clearing tokens:", error);
-    }
+    localStorage.removeItem("auth_tokens");
   };
 
-  const isTokenExpired = (expiresAt: string) => {
-    const now = new Date();
-    const expiry = new Date(expiresAt);
-    const isExpired = now >= expiry;
-
-    if (isExpired) {
-      console.log("Token expired:", expiresAt);
-    } else {
-      console.log("Token valid, expires:", expiresAt);
-    }
-
-    return isExpired;
-  };
+  const isTokenExpired = (expiresAt: string) =>
+    new Date() >= new Date(expiresAt);
 
   const handlePasswordReset = async () => {
-    if (!email) {
-      setError("Please enter your email address.");
-      return;
-    }
+    if (!email) return setError("Please enter your email address.");
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(`${workerUrl}/auth/password/reset`, {
+      const res = await fetch(`${workerUrl}/auth/password/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to send reset email.");
-      }
-      setSuccess(
-        "If an account with that email exists, a reset link has been sent."
-      );
+      const result = await res.json();
+      if (!res.ok)
+        throw new Error(result.message || "Failed to send reset email.");
+      setSuccess("If an account exists, a reset link has been sent.");
     } catch (err: any) {
-      setError(err.message || "Failed to send reset email.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
-
-  // Add a logout function for testing
-  const handleClearSession = () => {
-    clearStoredTokens();
-    setSuccess("Session cleared. Please log in again.");
-    setError(null);
-  };
-
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50 px-4 font-sans">
       <div className="flex flex-col lg:flex-row w-full max-w-4xl bg-white rounded-xl shadow-lg overflow-hidden">
@@ -237,16 +153,6 @@ export default function LoginPage() {
                 Sign in to your HelpBase account
               </p>
             </div>
-
-            {/* Debug button - remove in production */}
-            {process.env.NODE_ENV === "development" && (
-              <button
-                onClick={handleClearSession}
-                className="w-full mb-4 text-xs text-gray-500 underline"
-              >
-                [Debug] Clear Session
-              </button>
-            )}
 
             {success && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
@@ -300,6 +206,14 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={loading || !email}
+                  className="mt-2 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Forgot your password?
+                </button>
               </div>
 
               <button
@@ -324,7 +238,7 @@ export default function LoginPage() {
                 <img
                   src="/icons8-google.svg"
                   alt="Google"
-                  className="w-3 h-3"
+                  className="w-6 h-6"
                 />{" "}
                 Sign in with Google
               </button>
@@ -334,19 +248,11 @@ export default function LoginPage() {
                   Don't have an account?{" "}
                   <a
                     href="/signup"
-                    className="font-medium text-indigo-600 hover:text-indigo-700 transition-colors text-xs"
+                    className="font-bold text-indigo-600 hover:text-indigo-700 transition-colors text-xs"
                   >
                     Sign up
                   </a>
                 </p>
-                <button
-                  type="button"
-                  onClick={handlePasswordReset}
-                  disabled={loading || !email}
-                  className="font-medium text-indigo-600 hover:text-indigo-700 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Forgot your password?
-                </button>
               </div>
             </form>
           </div>

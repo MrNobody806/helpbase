@@ -63,6 +63,7 @@ export default function SignupPage() {
     password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -200,7 +201,7 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || `Signup failed: ${res.status}`);
+        throw new Error(data?.message || `Signup failed: ${res.status}`);
       }
 
       setSuccess(true);
@@ -249,6 +250,12 @@ export default function SignupPage() {
       return;
     }
 
+    // Check if still in cooldown period
+    if (resendCooldown > 0) {
+      setError(`Please wait ${resendCooldown} seconds before trying again`);
+      return;
+    }
+
     setResendLoading(true);
     setError(null);
 
@@ -265,8 +272,22 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || `Resend failed: ${res.status}`);
+        throw new Error(data?.message || `Resend failed: ${res.status}`);
       }
+
+      // Start cooldown timer (60 seconds)
+      setResendCooldown(60);
+
+      // Update cooldown every second
+      const cooldownInterval = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(cooldownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
 
       alert("Verification email resent. Please check your inbox.");
     } catch (err: any) {
@@ -363,10 +384,14 @@ export default function SignupPage() {
                   Didn't receive the email?{" "}
                   <button
                     onClick={handleResendVerification}
-                    disabled={resendLoading}
+                    disabled={resendLoading || resendCooldown > 0}
                     className="font-medium text-indigo-600 hover:text-indigo-700 transition-colors text-xs focus:outline-none focus:underline"
                   >
-                    {resendLoading ? "Resending..." : "Resend verification"}
+                    {resendLoading
+                      ? "Sending..."
+                      : resendCooldown > 0
+                      ? `Resend available in ${resendCooldown}s`
+                      : "Resend Verification"}
                   </button>
                 </p>
               </div>
