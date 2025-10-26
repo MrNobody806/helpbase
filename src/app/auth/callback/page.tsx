@@ -29,61 +29,52 @@ export default function AuthCallbackPage() {
     try {
       const supabase = createClient(supabaseUrl, supabaseAnon);
 
-      // For email confirmation flow, we need to parse tokens from URL
+      // Parse OTP parameters from URL
       const url = new URL(window.location.href);
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const token_hash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
 
-      const accessToken = hashParams.get("access_token");
-      const refreshToken = hashParams.get("refresh_token");
-      const type = hashParams.get("type");
+      console.log("OTP Callback:", { token_hash, type });
 
-      console.log("Email confirmation callback:", {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        type,
-      });
-
-      if (accessToken && refreshToken) {
-        // Set the session with the tokens from URL
-        const { error: setSessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-
-        if (setSessionError) {
-          console.error("Session error:", setSessionError);
-          throw new Error(
-            "Failed to authenticate. Please try the confirmation link again."
-          );
-        }
-
-        // Get the user to verify email confirmation
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          throw new Error("Failed to verify your account. Please try again.");
-        }
-
-        console.log("User email confirmed:", !!user.email_confirmed_at);
-
-        if (!user.email_confirmed_at) {
-          throw new Error(
-            "Email not confirmed yet. Please ensure you clicked the correct link."
-          );
-        }
-
-        // Clear URL tokens to prevent re-triggering
-        window.history.replaceState({}, "", window.location.pathname);
-
-        await processSuccessfulConfirmation(user.id);
-      } else {
+      if (!token_hash || !type) {
         throw new Error(
           "Invalid confirmation link. Please click the link from your email again."
         );
       }
+
+      // Verify the OTP token
+      const { error, data } = await supabase.auth.verifyOtp({
+        type: type as any,
+        token_hash,
+      });
+
+      if (error) {
+        console.error("OTP verification error:", error);
+        throw new Error(
+          `Verification failed: ${error.message}. Please try the link again.`
+        );
+      }
+
+      console.log("OTP verified successfully:", data);
+
+      // Get the user after successful verification
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error("Failed to retrieve user after verification.");
+      }
+
+      console.log("User verified:", user.email);
+      console.log("Email confirmed:", !!user.email_confirmed_at);
+
+      // Clear the OTP parameters from URL
+      window.history.replaceState({}, "", window.location.pathname);
+
+      // Process the successful confirmation
+      await processSuccessfulConfirmation(user.id);
     } catch (error: any) {
       console.error("Callback error:", error);
       setStatus("error");
@@ -104,7 +95,7 @@ export default function AuthCallbackPage() {
         setStatus("success");
         setMessage("Account setup complete! Redirecting to login...");
 
-        // Sign out the user since they confirmed email but will login with password later
+        // Sign out the user since they'll login with email/password later
         const supabase = createClient(supabaseUrl, supabaseAnon);
         await supabase.auth.signOut();
 

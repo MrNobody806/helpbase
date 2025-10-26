@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { getConfig } from "@/lib/conifg";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -8,6 +9,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string>("");
+  const router = useRouter();
 
   const { workerUrl } = getConfig();
 
@@ -102,24 +104,9 @@ export default function LoginPage() {
     new Date() >= new Date(expiresAt);
 
   const handlePasswordReset = async () => {
-    if (!email) return setError("Please enter your email address.");
-    setLoading(true);
-    try {
-      const res = await fetch(`${workerUrl}/auth/password/reset`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
-      const result = await res.json();
-      if (!res.ok)
-        throw new Error(result.message || "Failed to send reset email.");
-      setSuccess("If an account exists, a reset link has been sent.");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    router.push("/auth/forgot-password");
   };
+
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50 px-4 font-sans">
       <div className="flex flex-col lg:flex-row w-full max-w-4xl bg-white rounded-xl shadow-lg overflow-hidden">
