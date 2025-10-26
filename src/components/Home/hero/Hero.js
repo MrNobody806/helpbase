@@ -64,8 +64,10 @@ const Hero = () => {
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
       >
-        <button className="px-6 py-3 rounded-lg bg-black text-white font-semibold shadow-lg hover:bg-gray-900 transition-colors">
+        <button
           onClick={handleJoinWaitlist}
+          className="px-6 py-3 rounded-lg bg-black text-white font-semibold shadow-lg hover:bg-gray-900 transition-colors"
+        >
           Secure Your Spot
         </button>
       </motion.div>
