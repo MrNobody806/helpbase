@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { getConfig } from "@/lib/conifg";
-import { useSearchParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -9,20 +9,26 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string>("");
-  const [token, setToken] = useState<string | null>(null);
 
-  const searchParams = useSearchParams();
-  const { workerUrl } = getConfig();
+  const router = useRouter();
 
   useEffect(() => {
-    // Get token from URL query parameters
-    const tokenFromUrl = searchParams.get("token");
-    if (tokenFromUrl) {
-      setToken(tokenFromUrl);
+    // Check if we have a valid recovery token in the URL
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get("access_token");
+    const type = hashParams.get("type");
+
+    console.log("URL parameters:", { accessToken: !!accessToken, type });
+
+    if (type !== "recovery" || !accessToken) {
+      setError(
+        "Invalid or expired reset link. Please request a new password reset."
+      );
     } else {
-      setError("Invalid or missing reset token");
+      // Clear the URL hash but keep the token available for the auth flow
+      window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [searchParams]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +36,12 @@ export default function ResetPasswordPage() {
     setError(null);
     setSuccess("");
 
-    if (!token) {
+    // Get the current URL hash parameters
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get("access_token");
+    const type = hashParams.get("type");
+
+    if (type !== "recovery" || !accessToken) {
       setError("Invalid reset token");
       setLoading(false);
       return;
@@ -49,42 +60,79 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      const res = await fetch(`${workerUrl}/auth/password/update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          password,
-        }),
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      console.log("Attempting password reset with recovery token...");
+
+      // For recovery tokens, we need to use verifyOtp first
+      const { data: verifyData, error: verifyError } =
+        await supabase.auth.verifyOtp({
+          token_hash: accessToken,
+          type: "recovery",
+        });
+
+      if (verifyError) {
+        console.error("OTP verification failed:", verifyError);
+        throw new Error(
+          "Invalid or expired reset link. Please request a new password reset."
+        );
+      }
+
+      console.log("OTP verified successfully, updating password...");
+
+      // Now update the password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password,
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to reset password");
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw new Error(updateError.message || "Failed to update password");
+      }
 
       setSuccess("Password reset successfully! Redirecting to login...");
 
+      // Sign out and redirect to login
+      await supabase.auth.signOut();
+
       // Redirect to login after 2 seconds
       setTimeout(() => {
-        window.location.href = "/login";
+        router.push("/login");
       }, 2000);
     } catch (err: any) {
-      setError(err.message || "Failed to reset password");
+      console.error("Password reset error:", err);
+      setError(
+        err.message ||
+          "Failed to reset password. Please request a new reset link."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  if (!token && !error) {
+  if (error && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full space-y-8">
+        <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
           <div className="text-center">
             <div className="flex justify-center">
               <img src="/logo.svg" alt="HelpBase" className="w-16 h-16" />
             </div>
             <h2 className="mt-6 text-2xl font-bold text-gray-900">
-              Loading...
+              Reset Error
             </h2>
+            <p className="mt-2 text-sm text-gray-600">{error}</p>
+            <div className="mt-6">
+              <a
+                href="/login"
+                className="w-full bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-all py-3 px-6 inline-block"
+              >
+                Back to Login
+              </a>
+            </div>
           </div>
         </div>
       </div>
