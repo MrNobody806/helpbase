@@ -12,11 +12,9 @@ export default function AuthCallbackPage() {
   );
 
   const { workerUrl } = getConfig();
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  // Refs to track execution state
   const hasProcessed = useRef(false);
   const provisioningTriggered = useRef(false);
 
@@ -25,97 +23,108 @@ export default function AuthCallbackPage() {
   }, []);
 
   const handleAuthCallback = async () => {
-    // Prevent multiple executions
-    if (hasProcessed.current) {
-      console.log("Auth callback already processed");
-      return;
-    }
+    if (hasProcessed.current) return;
     hasProcessed.current = true;
 
     try {
       const supabase = createClient(supabaseUrl, supabaseAnon);
 
+      // For email confirmation flow, we need to parse tokens from URL
       const url = new URL(window.location.href);
-      const hashParams = new URLSearchParams(url.hash.substring(1));
-      const queryParams = new URLSearchParams(url.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
 
-      const accessToken =
-        hashParams.get("access_token") || queryParams.get("access_token");
-      const refreshToken =
-        hashParams.get("refresh_token") || queryParams.get("refresh_token");
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      const type = hashParams.get("type");
 
-      if (!accessToken || !refreshToken) {
-        throw new Error("No tokens found in URL");
-      }
-
-      // Set the session first
-      const { error: setSessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
+      console.log("Email confirmation callback:", {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        type,
       });
-      if (setSessionError) throw setSessionError;
 
-      // Get user data to verify email confirmation
-      const {
-        data: { user },
-        error: getUserError,
-      } = await supabase.auth.getUser();
-      if (getUserError || !user) throw new Error("Failed to retrieve user");
+      if (accessToken && refreshToken) {
+        // Set the session with the tokens from URL
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
 
-      console.log("User email confirmed:", !!user.email_confirmed_at);
-      console.log("User ID:", user.id);
-
-      if (!user.email_confirmed_at) {
-        throw new Error("Email not verified yet");
-      }
-
-      // ✅ CRITICAL: Clear tokens from URL immediately after validation
-      // This prevents re-triggering on refresh/navigation
-      window.history.replaceState({}, "", window.location.pathname);
-
-      // ✅ CRITICAL: Trigger Chatwoot provisioning ONLY if not already triggered
-      if (!provisioningTriggered.current) {
-        provisioningTriggered.current = true;
-
-        setMessage("Email confirmed! Setting up your Chatwoot account...");
-
-        const provisioningResult = await triggerChatwootProvisioning(user.id);
-
-        if (provisioningResult.success) {
-          setStatus("success");
-          setMessage("Account setup complete! Redirecting to login...");
-
-          // Sign out the user since they'll sign in with email/password later
-          await supabase.auth.signOut();
-
-          // Redirect to login with success message
-          setTimeout(() => {
-            window.location.href = "/login?message=email_confirmed";
-          }, 2000);
-        } else {
+        if (setSessionError) {
+          console.error("Session error:", setSessionError);
           throw new Error(
-            provisioningResult.error || "Failed to setup Chatwoot account"
+            "Failed to authenticate. Please try the confirmation link again."
           );
         }
+
+        // Get the user to verify email confirmation
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          throw new Error("Failed to verify your account. Please try again.");
+        }
+
+        console.log("User email confirmed:", !!user.email_confirmed_at);
+
+        if (!user.email_confirmed_at) {
+          throw new Error(
+            "Email not confirmed yet. Please ensure you clicked the correct link."
+          );
+        }
+
+        // Clear URL tokens to prevent re-triggering
+        window.history.replaceState({}, "", window.location.pathname);
+
+        await processSuccessfulConfirmation(user.id);
       } else {
-        console.log("Chatwoot provisioning already triggered, redirecting...");
-        // If provisioning was already triggered, just redirect
-        setStatus("success");
-        setMessage("Redirecting to login...");
-        setTimeout(() => {
-          window.location.href = "/login?message=email_confirmed";
-        }, 1000);
+        throw new Error(
+          "Invalid confirmation link. Please click the link from your email again."
+        );
       }
     } catch (error: any) {
       console.error("Callback error:", error);
       setStatus("error");
       setMessage(
-        error.message || "Confirmation failed. Please try logging in."
+        error.message || "Confirmation failed. Please try the link again."
       );
     }
   };
 
-  // ✅ This function actually triggers Chatwoot provisioning
+  const processSuccessfulConfirmation = async (userId: string) => {
+    if (!provisioningTriggered.current) {
+      provisioningTriggered.current = true;
+
+      setMessage("Email confirmed! Setting up your Chatwoot account...");
+      const provisioningResult = await triggerChatwootProvisioning(userId);
+
+      if (provisioningResult.success) {
+        setStatus("success");
+        setMessage("Account setup complete! Redirecting to login...");
+
+        // Sign out the user since they confirmed email but will login with password later
+        const supabase = createClient(supabaseUrl, supabaseAnon);
+        await supabase.auth.signOut();
+
+        setTimeout(() => {
+          window.location.href = "/login?message=email_confirmed";
+        }, 2000);
+      } else {
+        throw new Error(
+          provisioningResult.error || "Failed to setup Chatwoot account"
+        );
+      }
+    } else {
+      setStatus("success");
+      setMessage("Redirecting to login...");
+      setTimeout(() => {
+        window.location.href = "/login?message=email_confirmed";
+      }, 1000);
+    }
+  };
+
   const triggerChatwootProvisioning = async (userId: string) => {
     try {
       console.log("Triggering Chatwoot provisioning for user:", userId);
